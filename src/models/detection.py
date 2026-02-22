@@ -11,5 +11,7 @@ class Detection:
     bbox: BoundingBox
     score: float
 
-    def __eq__(self, value: Detection) -> bool:
-        return value.typeObj == self.typeObj
+    def __eq__(self, value) -> bool:
+        if (isinstance(value, Detection)):
+            return value.typeObj == self.typeObj
+        return False

@@ -10,6 +10,7 @@ class TypesObjects(Enum):
     CRANE = 2
     PERSON = 3
     NUMBERPLATE = 4
+    FORKLIFT_TRUCK = 5
 
     @classmethod
     def _missing_(cls, value: str) -> TypesObjects:
@@ -30,4 +31,4 @@ class TypesObjects(Enum):
             if member.name.lower() == value.lower():
                 return member
         
-        raise KeyError(f"Category 'f{value}' not found")
+        raise KeyError(f"Category '{value}' not found")

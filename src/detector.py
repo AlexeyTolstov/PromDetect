@@ -1,4 +1,5 @@
-import cv2
+from typing import Iterable
+import cv2, time
 
 import mediapipe as mp
 from mediapipe.tasks import python
@@ -36,7 +37,7 @@ class ObjectDetector:
             (0, 212, 255),      # Crane
             (100, 100, 100),    # Person
             (100, 100, 100),    # NumberPlate
-            (100, 100, 100),    #
+            (0, 212, 255),      # Forklift Truck
             (100, 100, 100)     #
         ]
 
@@ -69,7 +70,7 @@ class ObjectDetector:
                     score=score
                 )
             )
-
+        
         return lst_detection
 
 
@@ -78,6 +79,8 @@ class ObjectDetector:
             image: cv2.typing.MatLike,
             lst_detection: list[Detection]
         ) -> cv2.typing.MatLike:
+
+        cv2.line(image, (0, 200), (1024, 200), (0, 255, 0), 1, 4)
         
         for detect in lst_detection:
             cv2.rectangle(
@@ -89,3 +92,43 @@ class ObjectDetector:
             )
         
         return image
+    
+    def detect_operation(
+        self,
+        lst_detection: list[Detection]
+    ):
+        lst = []
+        forklift_truck_lst: Iterable[Detection] = filter(
+            lambda d: d.typeObj == TypesObjects.FORKLIFT_TRUCK,
+            lst_detection
+        )
+        
+        proflist_lst: Iterable[Detection] = filter(
+            lambda d: d.typeObj == TypesObjects.PROFLIST,
+            lst_detection
+        )
+
+        truck_lst: Iterable[Detection] = filter(
+            lambda d: d.typeObj == TypesObjects.TRUCK,
+            lst_detection
+        )
+
+        for truck_obj in truck_lst:
+            if truck_obj.bbox.y2 > 200:
+                lst.append("Грузовик на складе")
+            else:
+                continue
+
+        for forklift_obj in forklift_truck_lst:
+            if forklift_obj.bbox.y2 > 200:
+                lst.append("Погрузчик на складе")
+            else:
+                continue
+
+            for proflist_obj in proflist_lst:
+                if abs(forklift_obj.bbox.y2 - proflist_obj.bbox.y1) <= 100 and abs(forklift_obj.bbox.x1 - proflist_obj.bbox.x1) <= 100:
+                    lst.append("Захватил объект")
+            #         print('Захватил', end=" ")
+            # print()
+        
+        return lst

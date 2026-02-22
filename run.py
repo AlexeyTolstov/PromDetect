@@ -1,20 +1,23 @@
 import cv2, time
 from src.detector import ObjectDetector
 from src.models.detection import Detection
+from src.utils import add_ru_text
 
 
 FRAME_WIDTH: int = 1024
 FRAME_HEIGHT: int = 576
-VIDEO_PATH: str = "Video/Cam 0.mp4"
+VIDEO_PATH: str = "Video/Cam 2.mp4"
+
 
 object_detector = ObjectDetector(
     model_path="saved_models/main_model.tflite",
     max_results=40,
-    score_threshold=0.3
+    score_threshold=0.5
 )
 
 cap = cv2.VideoCapture(VIDEO_PATH)
 
+cap.set(cv2.CAP_PROP_POS_FRAMES, 5500)
 
 while cap.isOpened():
     ret, frame = cap.read()
@@ -43,6 +46,12 @@ while cap.isOpened():
         (255, 0, 255),
         thickness=2
     )
+
+
+    lst_oper = object_detector.detect_operation(lst_detection)
+    for i, text in enumerate(lst_oper):
+        frame = add_ru_text(frame, text, (600, 10 + (i * 30)))
+
 
     cv2.imshow(f"PromDetect Window", frame)
 

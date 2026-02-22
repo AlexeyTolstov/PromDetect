@@ -1,0 +1,1 @@
+from .add_ru_text import add_ru_text
