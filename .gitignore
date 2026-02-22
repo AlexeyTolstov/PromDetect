@@ -1,3 +1,5 @@
 Video/
 __pycache__/
 temp/
+.vscode/
+.github/

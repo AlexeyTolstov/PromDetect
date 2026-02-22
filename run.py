@@ -17,7 +17,6 @@ object_detector = ObjectDetector(
 
 cap = cv2.VideoCapture(VIDEO_PATH)
 
-cap.set(cv2.CAP_PROP_POS_FRAMES, 5500)
 
 while cap.isOpened():
     ret, frame = cap.read()
