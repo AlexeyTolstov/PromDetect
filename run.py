@@ -1,4 +1,4 @@
-import cv2, time
+import cv2, time, datetime
 from src.detector import ObjectDetector
 from src.models.detection import Detection
 from src.utils import add_ru_text
@@ -54,8 +54,17 @@ while cap.isOpened():
 
     cv2.imshow(f"PromDetect Window", frame)
 
-    if cv2.waitKey(1) & 0xFF == ord('q'):
+    key = cv2.waitKey(1) & 0xFF
+    if key == ord('q'):
+        print("Выход")
         break
+
+    if key == ord('s'):
+        date = datetime.datetime.now()
+        filename = "screenshots/" + date.strftime("%d_%m_%Y_%I_%M_%S") + ".jpg"
+        cv2.imwrite(filename, frame)
+        print("Скриншет сохранен")
+
 
 
 cap.release()
