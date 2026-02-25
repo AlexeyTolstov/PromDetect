@@ -10,6 +10,7 @@ class Detection:
     typeObj: TypesObjects
     bbox: BoundingBox
     score: float
+    id: int
 
     def __eq__(self, value) -> bool:
         if (isinstance(value, Detection)):

@@ -8,6 +8,8 @@ from mediapipe.tasks.python import vision
 from src.models.bbox import BoundingBox
 from src.models.detection import Detection
 from src.models.types_objects import TypesObjects
+from src.models.operation import TypesOperations
+from src.utils import *
 
 
 class ObjectDetector:
@@ -53,7 +55,7 @@ class ObjectDetector:
 
         lst_detection: list[Detection] = []
 
-        for detection in detection_result.detections:
+        for (id, detection) in enumerate(detection_result.detections):
             bbox = detection.bounding_box
             category = detection.categories[0].category_name
             score = detection.categories[0].score
@@ -67,7 +69,8 @@ class ObjectDetector:
                         bbox.origin_x + bbox.width,
                         bbox.origin_y + bbox.height
                     ),
-                    score=score
+                    score=score,
+                    id=id
                 )
             )
         
@@ -77,17 +80,53 @@ class ObjectDetector:
     def draw_detection(
             self,
             image: cv2.typing.MatLike,
-            lst_detection: list[Detection]
+            lst_detection: list[Detection],
+            isDrawTitle: bool = False,
+            isDrawScore: bool = False,
+            isDrawLines: bool = True
         ) -> cv2.typing.MatLike:
 
-        cv2.line(image, (0, 200), (1024, 200), (0, 255, 0), 1, 4)
+        if isDrawLines:
+            cv2.line(
+                image, (0, 200), (1024, 200),
+                (0, 255, 0), 2, 4
+            ) # Вход на склад
+
+            draw_line_custom(
+                image, (0, 550), (1024, 550), 
+                (200, 255, 0), style="dashed", thickness=2
+            ) # Машина заехала
         
-        for detect in lst_detection:
+        for detection in lst_detection:
+            if detection.typeObj == TypesObjects.NUMBERPLATE:
+                continue
+
+            if isDrawTitle:
+                cv2.putText(
+                    image, f"{detection.typeObj._name_}",
+                    (detection.bbox.x1 + 5, detection.bbox.y1 + 8),
+                    1, 0.6, self.colorObjects[detection.typeObj.value], 1
+                )
+
+            if isDrawScore:
+                cv2.putText(
+                    image, f"{detection.score:.1f}",
+                    (detection.bbox.x2 - 25, detection.bbox.y1 + 13),
+                    1, 0.9, self.colorObjects[detection.typeObj.value], 1
+                )
+            
+            if detection.typeObj == TypesObjects.TRUCK and detection.bbox.y2 > 550:
+                image = add_ru_text(
+                    image, "вв 9042 | 66",
+                    (detection.bbox.x1 + 5, detection.bbox.y1-15),
+                    text_size=15
+                )
+            
             cv2.rectangle(
                 image,
-                detect.bbox.point1(),
-                detect.bbox.point2(),
-                self.colorObjects[detect.typeObj.value],
+                detection.bbox.point1(),
+                detection.bbox.point2(),
+                self.colorObjects[detection.typeObj.value],
                 2
             )
         
@@ -96,10 +135,17 @@ class ObjectDetector:
     def detect_operation(
         self,
         lst_detection: list[Detection]
-    ):
-        lst = []
+    ) -> tuple[list[TypesOperations], list[int]]:
+        oper_lst: list[TypesOperations] = []
+        draw_detection_lst: list[int] = []
+
         forklift_truck_lst: Iterable[Detection] = filter(
             lambda d: d.typeObj == TypesObjects.FORKLIFT_TRUCK,
+            lst_detection
+        )
+
+        crane_lst: Iterable[Detection] = filter(
+            lambda d: d.typeObj == TypesObjects.CRANE,
             lst_detection
         )
         
@@ -113,22 +159,28 @@ class ObjectDetector:
             lst_detection
         )
 
+        for crane_obj in crane_lst:
+            draw_detection_lst.append(crane_obj.id)
+        
         for truck_obj in truck_lst:
-            if truck_obj.bbox.y2 > 200:
-                lst.append("Грузовик на складе")
+            draw_detection_lst.append(truck_obj.id)
+
+            if truck_obj.bbox.y2 > 550:
+                oper_lst.append(TypesOperations.TRUCK_IN_WAREHOUS)
             else:
                 continue
 
         for forklift_obj in forklift_truck_lst:
+            draw_detection_lst.append(forklift_obj.id)
             if forklift_obj.bbox.y2 > 200:
-                lst.append("Погрузчик на складе")
+                oper_lst.append(TypesOperations.FORKLIFT_TRUCK_IN_WAREHOUS)
             else:
                 continue
 
             for proflist_obj in proflist_lst:
-                if abs(forklift_obj.bbox.y2 - proflist_obj.bbox.y1) <= 100 and abs(forklift_obj.bbox.x1 - proflist_obj.bbox.x1) <= 100:
-                    lst.append("Захватил объект")
-            #         print('Захватил', end=" ")
-            # print()
+                if (-3 <= forklift_obj.bbox.y2 - proflist_obj.bbox.y1) \
+                    and abs(forklift_obj.bbox.x1 - proflist_obj.bbox.x1) <= 50:
+                    oper_lst.append(TypesOperations.MOVING_OBJECT_FORLIFT_TRUCK)
+                    draw_detection_lst.append(proflist_obj.id)
         
-        return lst
+        return oper_lst, draw_detection_lst
