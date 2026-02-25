@@ -37,7 +37,7 @@ class ObjectDetector:
             (255, 0, 0),        # Proflist
             (0, 255, 0),        # Truck
             (0, 212, 255),      # Crane
-            (100, 100, 100),    # Person
+            (255, 170, 66),     # Person
             (100, 100, 100),    # NumberPlate
             (0, 212, 255),      # Forklift Truck
             (100, 100, 100)     #
@@ -159,7 +159,26 @@ class ObjectDetector:
             lst_detection
         )
 
+        person_lst: Iterable[Detection] = filter(
+            lambda d: d.typeObj == TypesObjects.PERSON,
+            lst_detection
+        )
+
+        for person_obj in person_lst:
+            draw_detection_lst.append(person_obj.id)
+
         for crane_obj in crane_lst:
+            for proflist_obj in proflist_lst:
+                if abs(crane_obj.bbox.x1 - proflist_obj.bbox.x1) <= 50 \
+                      and abs(crane_obj.bbox.x2 - proflist_obj.bbox.x2) <= 50\
+                      and -100 <= proflist_obj.bbox.y1 - crane_obj.bbox.y2 <= 80:
+                    oper_lst.append(TypesOperations.MOVING_OBJECT_CRANE)
+                    draw_detection_lst.append(proflist_obj.id)
+
+                    for truck_obj in truck_lst:
+                        if (truck_obj.bbox.x1 <= crane_obj.bbox.x1 and crane_obj.bbox.x2 <= truck_obj.bbox.x2):
+                            oper_lst.append(TypesOperations.MOVING_OBJECT_CRANE_IN_TRUCK)
+
             draw_detection_lst.append(crane_obj.id)
         
         for truck_obj in truck_lst:

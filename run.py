@@ -35,7 +35,7 @@ skip_seconds: int = 20
 video_fps: int = int(cap.get(cv2.CAP_PROP_FPS))
 skip_frames: int = skip_seconds * video_fps
 
-
+current_frame = 8000
 while cap.isOpened():
     # region Pause Events
     if isPaused:
@@ -82,7 +82,11 @@ while cap.isOpened():
     
     add_ru_text(frame, "Текущие операции", (600, 5), text_size=20)
     lst_ru_operation = [
-        "Грузовик на складе", "Погрузчик на складе", "Перемещение груза вилочным погрузчиком"
+        "Грузовик на складе",
+        "Погрузчик на складе",
+        "Перемещение груза вилочным погрузчиком",
+        "Перемещение груза с помощью крана",
+        "Перемещение груза с помощью крана в грузовик"
     ]
 
     for i, operation in enumerate(oper_lst):
