@@ -72,7 +72,8 @@ class ObjectDetector:
                         bbox.origin_y + bbox.height
                     ),
                     score=score,
-                    id=id
+                    id=id,
+                    last_time=time()
                 )
             )
         
@@ -102,7 +103,12 @@ class ObjectDetector:
         for detection in lst_detection:
             if detection.typeObj == TypesObjects.NUMBERPLATE:
                 continue
-
+            
+            cv2.putText(
+                image, f"{detection.id}",
+                (detection.bbox.x1 + 5, detection.bbox.y1 + 8),
+                1, 0.6, self.colorObjects[detection.typeObj.value], 1
+            )
             if isDrawTitle:
                 cv2.putText(
                     image, f"{detection.typeObj._name_}",
@@ -138,6 +144,8 @@ class ObjectDetector:
         self,
         lst_detection: list[Detection]
     ) -> tuple[list[Operation], list[int]]:
+        
+        # FIXME Всю эту шляпу нужно разбить нормально на операции. Слишком много ненужного кода и некрасивого
         oper_lst: list[Operation] = []
         draw_detection_lst: list[int] = []
 

@@ -9,19 +9,21 @@ from src.models.operation import TypesOperations
 from src.config import *
 from src.utils import *
 
+from random import randint
 import pandas as pd
+
 
 df = pd.DataFrame(columns=['Date', 'Time', 'Operation'])
 
 object_detector = ObjectDetector(
     model_path=MODEL_PATH,
     max_results=40,
-    score_threshold=0.2
+    score_threshold=0.3
 )
 
 cap = cv2.VideoCapture(VIDEO_PATH)
 
-current_frame: int = 0
+current_frame: int = 6900 # FIXME
 total_frames: int = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 isPaused: bool = False
 
@@ -29,13 +31,15 @@ skip_seconds: int = 20
 video_fps: int = int(cap.get(cv2.CAP_PROP_FPS))
 skip_frames: int = skip_seconds * video_fps
 
-
-current_frame = 6900 # FIXME
+# FIXME
+cap.set(cv2.CAP_PROP_POS_FRAMES, current_frame)
 
 # FIXME!!!!
 last_time_truck_in_warehous = 0
 last_send_message = None
 start_time_truck_in_warehous = None
+
+lst: list[Detection] = []
 
 
 while cap.isOpened():
@@ -67,8 +71,57 @@ while cap.isOpened():
     start = time.time()
     frame = cv2.resize(frame, (FRAME_WIDTH, FRAME_HEIGHT))
 
-    lst_detection: list[Detection] = object_detector.detect(frame)
+    # FIXME
+    lst_detection_on_frame: list[Detection] = object_detector.detect(frame)
+    lst_detection: list[Detection] = []
+    used: list[bool] = [False] * len(lst_detection_on_frame) 
 
+    del_obj = []
+
+    for d in lst:
+        isAdd: bool = False
+
+        for [i2, d2] in enumerate(lst_detection_on_frame):
+            if d == d2 and not used[i2]:
+                used[i2] = True
+                
+                if not isAdd:
+                    lst_detection.append(
+                        Detection(
+                            typeObj=d2.typeObj,
+                            bbox=d2.bbox,
+                            score=d2.score,
+                            id=d.id,
+                            last_time=time.time()
+                        )
+                    )
+                
+                isAdd = True
+        
+        if not isAdd:
+            if time.time() - d.last_time < 0.5:
+                lst_detection.append(d)
+                
+    for del_o in del_obj:
+        lst.remove(del_o)
+
+    for i in range(len(lst_detection_on_frame)):
+        if not used[i]:
+            d2 = lst_detection_on_frame[i]
+            lst_detection.append(
+                Detection(
+                    typeObj=d2.typeObj,
+                    bbox=d2.bbox,
+                    score=d2.score,
+                    id=randint(100, 1000),
+                    last_time=time.time()
+                )
+            )
+    lst = lst_detection
+    
+
+
+    # lst_detection: list[Detection] = lst_detection_temp
     delta = time.time() - start
     cv2.putText(
         frame,

@@ -15,9 +15,10 @@ MODEL_PATH: str = "saved_models/main_model.tflite"
 
 
 """ ===== DRAW ===== """
-isDrawAll: bool = False
+isDrawAll: bool = True
 isDrawTitle: bool = False
 isDrawScore: bool = False
 isDrawLines: bool = True
 
 
+eps: float = 20
