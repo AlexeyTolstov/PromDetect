@@ -6,18 +6,12 @@ from src.models.detection import Detection
 from src.models.types_objects import TypesObjects
 from src.models.operation import TypesOperations
 
-FRAME_WIDTH: int = 1024
-FRAME_HEIGHT: int = 576
-VIDEO_PATH: str = "Video/Cam 2.mp4"
-MODEL_PATH: str = "saved_models/main_model.tflite"
+from src.config import *
+from src.utils import *
 
+import pandas as pd
 
-"""DRAW"""
-isDrawAll: bool = False
-isDrawTitle: bool = False
-isDrawScore: bool = False
-isDrawLines: bool = True
-
+df = pd.DataFrame(columns=['Date', 'Time', 'Operation'])
 
 object_detector = ObjectDetector(
     model_path=MODEL_PATH,
@@ -35,7 +29,15 @@ skip_seconds: int = 20
 video_fps: int = int(cap.get(cv2.CAP_PROP_FPS))
 skip_frames: int = skip_seconds * video_fps
 
-current_frame = 8000
+
+current_frame = 6900 # FIXME
+
+# FIXME!!!!
+last_time_truck_in_warehous = 0
+last_send_message = None
+start_time_truck_in_warehous = None
+
+
 while cap.isOpened():
     # region Pause Events
     if isPaused:
@@ -80,21 +82,36 @@ while cap.isOpened():
 
     oper_lst, draw_detection_id_lst = object_detector.detect_operation(lst_detection)
     
-    add_ru_text(frame, "Текущие операции", (600, 5), text_size=20)
-    lst_ru_operation = [
-        "Грузовик на складе",
-        "Погрузчик на складе",
-        "Перемещение груза вилочным погрузчиком",
-        "Перемещение груза с помощью крана",
-        "Перемещение груза с помощью крана в грузовик"
-    ]
+    frame = add_ru_text(frame, "Текущие операции:", (600, 0), text_size=25)
+
+
 
     for i, operation in enumerate(oper_lst):
-        if operation == TypesOperations.TRUCK_IN_WAREHOUS:
+        if operation.type_operation == TypesOperations.TRUCK_IN_WAREHOUS:
+            operation.upd_time(time.time())
             cv2.imwrite("screenshots/truck_on_sclad.jpg", frame)
-        
-        frame = add_ru_text(frame, lst_ru_operation[operation.value], (600, 15 + (i * 30)), text_size=20)
-    
+
+            if start_time_truck_in_warehous is None:
+                df.loc[len(df)] = ['28.02.2026', time.time(), 'Грузовик приехал']
+                start_time_truck_in_warehous = time.time()
+            
+            last_time_truck_in_warehous = time.time()
+
+
+            delta_time = time.time() - start_time_truck_in_warehous
+            
+            frame = add_ru_text(
+                frame, 
+                f"Грузовик на складе: {delta_time:.1f} секунд", 
+                (600, 25 + (i * 30)), text_size=20
+            )
+
+            if delta_time >= 5 and (last_send_message is None or time.time() - last_send_message > 5):
+                send_telegram("ПРОСТОЙ у грузовика")
+                df.loc[len(df)] = ['28.02.2026', time.time(), 'Простой грузовика']
+                last_send_message = time.time()
+        else: 
+            frame = add_ru_text(frame, str(operation), (600, 15 + (i * 30)), text_size=20)
 
     draw_detection_lst = [
         next((d for d in lst_detection if d.id == id))
@@ -113,6 +130,7 @@ while cap.isOpened():
 
     # region Keyboard Events
     
+    df.to_csv('test.csv')
     key = cv2.waitKey(1) & 0xFF
 
     if key == ord('q'):

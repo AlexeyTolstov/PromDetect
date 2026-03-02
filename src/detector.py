@@ -9,7 +9,9 @@ from src.models.bbox import BoundingBox
 from src.models.detection import Detection
 from src.models.types_objects import TypesObjects
 from src.models.operation import TypesOperations
+from src.models.operation import *
 from src.utils import *
+
 
 
 class ObjectDetector:
@@ -135,34 +137,34 @@ class ObjectDetector:
     def detect_operation(
         self,
         lst_detection: list[Detection]
-    ) -> tuple[list[TypesOperations], list[int]]:
-        oper_lst: list[TypesOperations] = []
+    ) -> tuple[list[Operation], list[int]]:
+        oper_lst: list[Operation] = []
         draw_detection_lst: list[int] = []
 
-        forklift_truck_lst: Iterable[Detection] = filter(
+        forklift_truck_lst: Iterable[Detection] = list(filter(
             lambda d: d.typeObj == TypesObjects.FORKLIFT_TRUCK,
             lst_detection
-        )
+        ))
 
-        crane_lst: Iterable[Detection] = filter(
+        crane_lst: Iterable[Detection] = list(filter(
             lambda d: d.typeObj == TypesObjects.CRANE,
             lst_detection
-        )
+        ))
         
-        proflist_lst: Iterable[Detection] = filter(
+        proflist_lst: Iterable[Detection] = list(filter(
             lambda d: d.typeObj == TypesObjects.PROFLIST,
             lst_detection
-        )
+        ))
 
-        truck_lst: Iterable[Detection] = filter(
+        truck_lst: Iterable[Detection] = list(filter(
             lambda d: d.typeObj == TypesObjects.TRUCK,
             lst_detection
-        )
+        ))
 
-        person_lst: Iterable[Detection] = filter(
+        person_lst: Iterable[Detection] = list(filter(
             lambda d: d.typeObj == TypesObjects.PERSON,
             lst_detection
-        )
+        ))
 
         for person_obj in person_lst:
             draw_detection_lst.append(person_obj.id)
@@ -172,34 +174,64 @@ class ObjectDetector:
                 if abs(crane_obj.bbox.x1 - proflist_obj.bbox.x1) <= 50 \
                       and abs(crane_obj.bbox.x2 - proflist_obj.bbox.x2) <= 50\
                       and -100 <= proflist_obj.bbox.y1 - crane_obj.bbox.y2 <= 80:
-                    oper_lst.append(TypesOperations.MOVING_OBJECT_CRANE)
+                    oper_lst.append(
+                        Operation(
+                            start_time=time(),
+                            last_time=time(),
+                            type_operation=TypesOperations.MOVING_OBJECT_CRANE
+                        )
+                    )
                     draw_detection_lst.append(proflist_obj.id)
 
                     for truck_obj in truck_lst:
                         if (truck_obj.bbox.x1 <= crane_obj.bbox.x1 and crane_obj.bbox.x2 <= truck_obj.bbox.x2):
-                            oper_lst.append(TypesOperations.MOVING_OBJECT_CRANE_IN_TRUCK)
-
+                            oper_lst.append(
+                                Operation(
+                                    start_time=time(),
+                                    last_time=time(),
+                                    type_operation=TypesOperations.MOVING_OBJECT_CRANE_IN_TRUCK
+                                )
+                            )
+                            
             draw_detection_lst.append(crane_obj.id)
         
         for truck_obj in truck_lst:
             draw_detection_lst.append(truck_obj.id)
 
             if truck_obj.bbox.y2 > 550:
-                oper_lst.append(TypesOperations.TRUCK_IN_WAREHOUS)
+                oper_lst.append(
+                    Operation(
+                        start_time=time(),
+                        last_time=time(),
+                        type_operation=TypesOperations.TRUCK_IN_WAREHOUS
+                    )
+                )
             else:
                 continue
 
         for forklift_obj in forklift_truck_lst:
             draw_detection_lst.append(forklift_obj.id)
             if forklift_obj.bbox.y2 > 200:
-                oper_lst.append(TypesOperations.FORKLIFT_TRUCK_IN_WAREHOUS)
+                oper_lst.append(
+                    Operation(
+                        start_time=time.time(),
+                        last_time=time.time(),
+                        type_operation=TypesOperations.FORKLIFT_TRUCK_IN_WAREHOUS
+                    )
+                )
             else:
                 continue
 
             for proflist_obj in proflist_lst:
                 if (-3 <= forklift_obj.bbox.y2 - proflist_obj.bbox.y1) \
                     and abs(forklift_obj.bbox.x1 - proflist_obj.bbox.x1) <= 50:
-                    oper_lst.append(TypesOperations.MOVING_OBJECT_FORLIFT_TRUCK)
+                    oper_lst.append(
+                        Operation(
+                            start_time=time(),
+                            last_time=time(),
+                            type_operation=TypesOperations.MOVING_OBJECT_FORLIFT_TRUCK
+                        )
+                    )
                     draw_detection_lst.append(proflist_obj.id)
         
         return oper_lst, draw_detection_lst
