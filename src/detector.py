@@ -11,7 +11,9 @@ from src.models.types_objects import TypesObjects
 from src.models.operation import TypesOperations
 from src.models.operation import *
 from src.utils import *
+from src.config import *
 
+from random import randint
 
 
 class ObjectDetector:
@@ -42,22 +44,29 @@ class ObjectDetector:
             (255, 170, 66),     # Person
             (100, 100, 100),    # NumberPlate
             (0, 212, 255),      # Forklift Truck
-            (100, 100, 100)     #
+
+            (65, 23, 200),      # Запас
+            (65, 23, 200),      # Запас
+            (65, 23, 200)       # Запас
         ]
+
+        self._lst_detection: list[Detection] = []
+        self._already_used_id: set[int] = set()
 
 
     def detect(
             self,
             image: cv2.typing.MatLike
         ) -> list[Detection]:
-        
+        """Обнаружение объектов на изображении"""
+
         rgb_frame = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
         detection_result = self.detector.detect(mp_image)
 
         lst_detection: list[Detection] = []
 
-        for (id, detection) in enumerate(detection_result.detections):
+        for (temp_id, detection) in enumerate(detection_result.detections):
             bbox = detection.bounding_box
             category = detection.categories[0].category_name
             score = detection.categories[0].score
@@ -72,14 +81,172 @@ class ObjectDetector:
                         bbox.origin_y + bbox.height
                     ),
                     score=score,
-                    id=id,
-                    last_time=time()
+                    id=temp_id,
+                    last_time=time.time()
                 )
             )
         
         return lst_detection
 
+    def tracker(
+            self,
+            lst_detection: list[Detection]
+        )-> list[Detection]:
+        """Отслеживание объектов на изображении"""
+        
+        lst_detection_tracker: list[Detection] = []
+        used: set[Detection] = set()
 
+        for d in self._lst_detection:
+            for new_d in lst_detection:
+                if d == new_d and not new_d in used:
+                    used.add(new_d)
+                    self._already_used_id.add(d.id)
+
+                    lst_detection_tracker.append(
+                        Detection(
+                            typeObj=new_d.typeObj,
+                            bbox=new_d.bbox,
+                            score=new_d.score,
+                            id=d.id,
+                            last_time=time.time()
+                        )
+                    )
+                    break
+            else:
+                if time.time() - d.last_time < time_threshold:
+                    lst_detection_tracker.append(d)
+                    self._already_used_id.add(d.id)
+                else:
+                    self._already_used_id.remove(d.id)
+        
+        for new_d in lst_detection:
+            if new_d in used: continue
+            
+            new_id: int = 0
+            while new_id in self._already_used_id:
+                new_id = randint(0, 1000)
+            self._already_used_id.add(new_id)
+
+            lst_detection_tracker.append(
+                Detection(
+                    typeObj=new_d.typeObj,
+                    bbox=new_d.bbox,
+                    score=new_d.score,
+                    id=new_id,
+                    last_time=time.time()
+                )
+            )
+
+        self._lst_detection = lst_detection_tracker
+        return lst_detection_tracker
+
+
+    def detect_operation(
+        self,
+        lst_detection: list[Detection]
+    ) -> tuple[list[Operation], list[int]]:
+        
+        # FIXME Всю эту шляпу нужно разбить нормально на операции. Слишком много ненужного кода и некрасивого (100 строк)
+        oper_lst: list[Operation] = []
+        draw_detection_lst: list[int] = []
+
+        forklift_truck_lst: Iterable[Detection] = list(filter(
+            lambda d: d.typeObj == TypesObjects.FORKLIFT_TRUCK,
+            lst_detection
+        ))
+
+        crane_lst: Iterable[Detection] = list(filter(
+            lambda d: d.typeObj == TypesObjects.CRANE,
+            lst_detection
+        ))
+        
+        proflist_lst: Iterable[Detection] = list(filter(
+            lambda d: d.typeObj == TypesObjects.PROFLIST,
+            lst_detection
+        ))
+
+        truck_lst: Iterable[Detection] = list(filter(
+            lambda d: d.typeObj == TypesObjects.TRUCK,
+            lst_detection
+        ))
+
+        person_lst: Iterable[Detection] = list(filter(
+            lambda d: d.typeObj == TypesObjects.PERSON,
+            lst_detection
+        ))
+
+        for person_obj in person_lst:
+            draw_detection_lst.append(person_obj.id)
+
+        for crane_obj in crane_lst:
+            for proflist_obj in proflist_lst:
+                if abs(crane_obj.bbox.x1 - proflist_obj.bbox.x1) <= 50 \
+                      and abs(crane_obj.bbox.x2 - proflist_obj.bbox.x2) <= 50\
+                      and -100 <= proflist_obj.bbox.y1 - crane_obj.bbox.y2 <= 80:
+                    oper_lst.append(
+                        Operation(
+                            start_time=time.time(),
+                            last_time=time.time(),
+                            type_operation=TypesOperations.MOVING_OBJECT_CRANE
+                        )
+                    )
+                    draw_detection_lst.append(proflist_obj.id)
+
+                    for truck_obj in truck_lst:
+                        if (truck_obj.bbox.x1 <= crane_obj.bbox.x1 and crane_obj.bbox.x2 <= truck_obj.bbox.x2):
+                            oper_lst.append(
+                                Operation(
+                                    start_time=time.time(),
+                                    last_time=time.time(),
+                                    type_operation=TypesOperations.MOVING_OBJECT_CRANE_IN_TRUCK
+                                )
+                            )
+                            
+            draw_detection_lst.append(crane_obj.id)
+        
+        for truck_obj in truck_lst:
+            draw_detection_lst.append(truck_obj.id)
+
+            if truck_obj.bbox.y2 > 550:
+                oper_lst.append(
+                    Operation(
+                        start_time=time.time(),
+                        last_time=time.time(),
+                        type_operation=TypesOperations.TRUCK_IN_WAREHOUS
+                    )
+                )
+            else:
+                continue
+
+        for forklift_obj in forklift_truck_lst:
+            draw_detection_lst.append(forklift_obj.id)
+            if forklift_obj.bbox.y2 > 200:
+                oper_lst.append(
+                    Operation(
+                        start_time=time.time(),
+                        last_time=time.time(),
+                        type_operation=TypesOperations.FORKLIFT_TRUCK_IN_WAREHOUS
+                    )
+                )
+            else:
+                continue
+
+            for proflist_obj in proflist_lst:
+                if (-3 <= forklift_obj.bbox.y2 - proflist_obj.bbox.y1) \
+                    and abs(forklift_obj.bbox.x1 - proflist_obj.bbox.x1) <= 50:
+                    oper_lst.append(
+                        Operation(
+                            start_time=time.time(),
+                            last_time=time.time(),
+                            type_operation=TypesOperations.MOVING_OBJECT_FORLIFT_TRUCK
+                        )
+                    )
+                    draw_detection_lst.append(proflist_obj.id)
+        
+        return oper_lst, draw_detection_lst
+    
+    
     def draw_detection(
             self,
             image: cv2.typing.MatLike,
@@ -140,106 +307,3 @@ class ObjectDetector:
         
         return image
     
-    def detect_operation(
-        self,
-        lst_detection: list[Detection]
-    ) -> tuple[list[Operation], list[int]]:
-        
-        # FIXME Всю эту шляпу нужно разбить нормально на операции. Слишком много ненужного кода и некрасивого
-        oper_lst: list[Operation] = []
-        draw_detection_lst: list[int] = []
-
-        forklift_truck_lst: Iterable[Detection] = list(filter(
-            lambda d: d.typeObj == TypesObjects.FORKLIFT_TRUCK,
-            lst_detection
-        ))
-
-        crane_lst: Iterable[Detection] = list(filter(
-            lambda d: d.typeObj == TypesObjects.CRANE,
-            lst_detection
-        ))
-        
-        proflist_lst: Iterable[Detection] = list(filter(
-            lambda d: d.typeObj == TypesObjects.PROFLIST,
-            lst_detection
-        ))
-
-        truck_lst: Iterable[Detection] = list(filter(
-            lambda d: d.typeObj == TypesObjects.TRUCK,
-            lst_detection
-        ))
-
-        person_lst: Iterable[Detection] = list(filter(
-            lambda d: d.typeObj == TypesObjects.PERSON,
-            lst_detection
-        ))
-
-        for person_obj in person_lst:
-            draw_detection_lst.append(person_obj.id)
-
-        for crane_obj in crane_lst:
-            for proflist_obj in proflist_lst:
-                if abs(crane_obj.bbox.x1 - proflist_obj.bbox.x1) <= 50 \
-                      and abs(crane_obj.bbox.x2 - proflist_obj.bbox.x2) <= 50\
-                      and -100 <= proflist_obj.bbox.y1 - crane_obj.bbox.y2 <= 80:
-                    oper_lst.append(
-                        Operation(
-                            start_time=time(),
-                            last_time=time(),
-                            type_operation=TypesOperations.MOVING_OBJECT_CRANE
-                        )
-                    )
-                    draw_detection_lst.append(proflist_obj.id)
-
-                    for truck_obj in truck_lst:
-                        if (truck_obj.bbox.x1 <= crane_obj.bbox.x1 and crane_obj.bbox.x2 <= truck_obj.bbox.x2):
-                            oper_lst.append(
-                                Operation(
-                                    start_time=time(),
-                                    last_time=time(),
-                                    type_operation=TypesOperations.MOVING_OBJECT_CRANE_IN_TRUCK
-                                )
-                            )
-                            
-            draw_detection_lst.append(crane_obj.id)
-        
-        for truck_obj in truck_lst:
-            draw_detection_lst.append(truck_obj.id)
-
-            if truck_obj.bbox.y2 > 550:
-                oper_lst.append(
-                    Operation(
-                        start_time=time(),
-                        last_time=time(),
-                        type_operation=TypesOperations.TRUCK_IN_WAREHOUS
-                    )
-                )
-            else:
-                continue
-
-        for forklift_obj in forklift_truck_lst:
-            draw_detection_lst.append(forklift_obj.id)
-            if forklift_obj.bbox.y2 > 200:
-                oper_lst.append(
-                    Operation(
-                        start_time=time.time(),
-                        last_time=time.time(),
-                        type_operation=TypesOperations.FORKLIFT_TRUCK_IN_WAREHOUS
-                    )
-                )
-            else:
-                continue
-
-            for proflist_obj in proflist_lst:
-                if (-3 <= forklift_obj.bbox.y2 - proflist_obj.bbox.y1) \
-                    and abs(forklift_obj.bbox.x1 - proflist_obj.bbox.x1) <= 50:
-                    oper_lst.append(
-                        Operation(
-                            start_time=time(),
-                            last_time=time(),
-                            type_operation=TypesOperations.MOVING_OBJECT_FORLIFT_TRUCK
-                        )
-                    )
-                    draw_detection_lst.append(proflist_obj.id)
-        
-        return oper_lst, draw_detection_lst

@@ -23,7 +23,7 @@ object_detector = ObjectDetector(
 
 cap = cv2.VideoCapture(VIDEO_PATH)
 
-current_frame: int = 6900 # FIXME
+current_frame: int = 0
 total_frames: int = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 isPaused: bool = False
 
@@ -38,8 +38,6 @@ cap.set(cv2.CAP_PROP_POS_FRAMES, current_frame)
 last_time_truck_in_warehous = 0
 last_send_message = None
 start_time_truck_in_warehous = None
-
-lst: list[Detection] = []
 
 
 while cap.isOpened():
@@ -71,57 +69,9 @@ while cap.isOpened():
     start = time.time()
     frame = cv2.resize(frame, (FRAME_WIDTH, FRAME_HEIGHT))
 
-    # FIXME
-    lst_detection_on_frame: list[Detection] = object_detector.detect(frame)
-    lst_detection: list[Detection] = []
-    used: list[bool] = [False] * len(lst_detection_on_frame) 
+    lst_detection: list[Detection] = object_detector.detect(frame)
+    lst_tracker: list[Detection] = object_detector.tracker(lst_detection)
 
-    del_obj = []
-
-    for d in lst:
-        isAdd: bool = False
-
-        for [i2, d2] in enumerate(lst_detection_on_frame):
-            if d == d2 and not used[i2]:
-                used[i2] = True
-                
-                if not isAdd:
-                    lst_detection.append(
-                        Detection(
-                            typeObj=d2.typeObj,
-                            bbox=d2.bbox,
-                            score=d2.score,
-                            id=d.id,
-                            last_time=time.time()
-                        )
-                    )
-                
-                isAdd = True
-        
-        if not isAdd:
-            if time.time() - d.last_time < 0.5:
-                lst_detection.append(d)
-                
-    for del_o in del_obj:
-        lst.remove(del_o)
-
-    for i in range(len(lst_detection_on_frame)):
-        if not used[i]:
-            d2 = lst_detection_on_frame[i]
-            lst_detection.append(
-                Detection(
-                    typeObj=d2.typeObj,
-                    bbox=d2.bbox,
-                    score=d2.score,
-                    id=randint(100, 1000),
-                    last_time=time.time()
-                )
-            )
-    lst = lst_detection
-    
-
-
-    # lst_detection: list[Detection] = lst_detection_temp
     delta = time.time() - start
     cv2.putText(
         frame,
@@ -133,10 +83,9 @@ while cap.isOpened():
         thickness=2
     )
 
-    oper_lst, draw_detection_id_lst = object_detector.detect_operation(lst_detection)
+    oper_lst, draw_detection_id_lst = object_detector.detect_operation(lst_tracker)
     
     frame = add_ru_text(frame, "Текущие операции:", (600, 0), text_size=25)
-
 
 
     for i, operation in enumerate(oper_lst):
@@ -167,13 +116,13 @@ while cap.isOpened():
             frame = add_ru_text(frame, str(operation), (600, 15 + (i * 30)), text_size=20)
 
     draw_detection_lst = [
-        next((d for d in lst_detection if d.id == id))
+        next((d for d in lst_tracker if d.id == id))
             for id in draw_detection_id_lst
     ]
 
 
     frame = object_detector.draw_detection(
-        frame, (lst_detection if isDrawAll else draw_detection_lst),
+        frame, (lst_tracker if isDrawAll else draw_detection_lst),
         isDrawTitle=isDrawTitle, isDrawScore=isDrawScore, isDrawLines=isDrawLines
     )
 

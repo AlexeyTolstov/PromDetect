@@ -1,7 +1,6 @@
 from .detection import Detection
 from typing import Optional
 from enum import Enum
-from time import time
 from src.config import lst_ru_operation
 
 

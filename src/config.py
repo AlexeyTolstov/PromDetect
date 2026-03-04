@@ -22,3 +22,4 @@ isDrawLines: bool = True
 
 
 eps: float = 20
+time_threshold: float = 0.5

@@ -22,3 +22,6 @@ class Detection:
                abs(self.bbox.x2 - value.bbox.x2) <= eps and \
                abs(self.bbox.x1 - value.bbox.x1) <= eps and \
                abs(self.bbox.x2 - value.bbox.x2) <= eps 
+    
+    def __hash__(self) -> int:
+        return hash((self.typeObj, self.bbox, self.id))
